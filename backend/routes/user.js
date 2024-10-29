@@ -1,60 +1,78 @@
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User"); // Assuming your User model is in this path
-const userRouter = express.Router();
 
-// Sign Up Route
-userRouter.post("/signup", async (req, res) => {
-  const { name, email, password } = req.body;
-  try {
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const User = require('../models/User'); 
+
+const router = express.Router();
+
+
+passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return done(null, false, { message: 'User not found' });
+        }
+
+        
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return done(null, false, { message: 'Incorrect password' });
+        }
+
+        return done(null, user);
+    } catch (err) {
+        return done(err);
     }
+}));
 
-    // Hash password and save new user
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-    });
-    await newUser.save();
 
-    // Respond with success message
-    res.status(201).json({ message: "User registered successfully" });
-  } catch (error) {
-    console.error("Signup error:", error); // Log the error
-    res.status(500).json({ message: "Server error" });
-  }
+passport.serializeUser((user, done) => {
+    done(null, user.id);
 });
 
-// Sign In Route
-userRouter.post("/signin", async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+
+passport.deserializeUser(async (id, done) => {
+    try {
+        const user = await User.findById(id);
+        done(null, user);
+    } catch (err) {
+        done(err);
     }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.json({ token, message: "Logged in successfully" });
-  } catch (error) {
-    console.error("Signin error:", error); // Log the error
-    res.status(500).json({ message: "Server error" });
-  }
 });
 
-module.exports = userRouter;
+
+router.post('/signUp', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
+
+       
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            email,
+            password: hashedPassword
+        });
+
+        await newUser.save();
+        res.status(201).json({ message: 'User registered successfully!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+router.post('/signIn', passport.authenticate('local'), (req, res) => {
+    res.status(200).json({ message: 'Login successful', user: req.user });
+});
+
+
+module.exports = router;

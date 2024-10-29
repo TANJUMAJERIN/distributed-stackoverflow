@@ -1,19 +1,24 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const postSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-  },
+const PostSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true,
   },
-  codeSnippet: String,
+  email: {
+    type: String,
+    required: true, // Email of the user posting the content
+  },
+  file: {
+    type: String,  // To store the file URL if a file is attached
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-module.exports = mongoose.model("Post", postSchema);
+const Post = mongoose.model('Post', PostSchema);
+
+module.exports = Post;
